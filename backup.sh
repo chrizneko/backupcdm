@@ -12,7 +12,7 @@
 #   example: restic init -r /root/backupserver/test
 # - a file that contains all the list file / folder (full path) to be backed up separated with enter, located on the same directory with this script. 
 #   set the variable INCLUDE and INCLUDENAS as the name of the file
-# created by CDM - v1.0.1-alpha
+# created by CDM - v1.0.2-alpha
 
 ##########################################################
 
@@ -110,7 +110,7 @@ if [ $FLAGBACKUPLOCAL -eq 1 ]; then
     # do a database backup if set
     if [ $FLAGBACKUPDBLOCAL -eq 1 ]; then
         echo "" >> $LOGSCRIPT
-        echo "`date` - Dumping mysql for database listed in $DATABASE" >> $LOGSCRIPT
+        echo "`date` - Dumping mysql for database listed in $CURDIR/$DATABASE" >> $LOGSCRIPT
         
         # prepare the directory
         rm -rf $DIRDUMP/*.sql
@@ -123,7 +123,7 @@ if [ $FLAGBACKUPLOCAL -eq 1 ]; then
             echo "`date` - Dumping mysql for database $line to $DIRDUMP/$line.sql" >> $LOGSCRIPT
             echo "" >> $LOGSCRIPT
             $MYSQLDUMP -v -h$DBHOST -u$DBUSER -p$DBPASS $line > $DIRDUMP/$line.sql 2>> $LOGSCRIPT
-        done < $DATABASE
+        done < $CURDIR/$DATABASE
     fi
     
     # do the restic backup
@@ -169,7 +169,7 @@ if [ $FLAGBACKUPNAS -eq 1 ]; then
         # if it is not dumped yet, then dump
         if [ $FLAGBACKUPDBLOCAL -ne 1 ]; then
             echo "" >> $LOGSCRIPT
-            echo "`date` - Dumping mysql for database listed in $DATABASE" >> $LOGSCRIPT
+            echo "`date` - Dumping mysql for database listed in $CURDIR/$DATABASE" >> $LOGSCRIPT
             
             # prepare the directory
             rm -rf $DIRDUMP/*.sql
@@ -182,7 +182,7 @@ if [ $FLAGBACKUPNAS -eq 1 ]; then
                 echo "`date` - Dumping mysql for database $line to $DIRDUMP/$line.sql" >> $LOGSCRIPT
                 echo "" >> $LOGSCRIPT
                 $MYSQLDUMP -v -h$DBHOST -u$DBUSER -p$DBPASS $line > $DIRDUMP/$line.sql 2>> $LOGSCRIPT
-            done < $DATABASE
+            done < $CURDIR/$DATABASE
         fi
     fi
     
