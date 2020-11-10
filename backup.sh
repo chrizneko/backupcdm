@@ -27,8 +27,12 @@ CURDIR="/root/bin/backupcdm"
 # this variable also can be changed but better not to be changed unless necessary
 
 # the config name file
-# contoh: CONF="conf.conf"
+# example: CONF="conf.conf"
 CONF="conf.conf"
+
+# path for mysqldump
+# example: MYSQLDUMP="/usr/bin/mysqldump"
+MYSQLDUMP="/usr/bin/mysqldump"
 
 ##########################################################
 
@@ -118,7 +122,7 @@ if [ $FLAGBACKUPLOCAL -eq 1 ]; then
             echo "" >> $LOGSCRIPT
             echo "`date` - Dumping mysql for database $line to $DIRDUMP/$line.sql" >> $LOGSCRIPT
             echo "" >> $LOGSCRIPT
-            mysqldump -v -h$DBHOST -u$DBUSER -p$DBPASS $line > $DIRDUMP/$line.sql 2>> $LOGSCRIPT
+            $MYSQLDUMP -v -h$DBHOST -u$DBUSER -p$DBPASS $line > $DIRDUMP/$line.sql 2>> $LOGSCRIPT
         done < $DATABASE
     fi
     
@@ -177,7 +181,7 @@ if [ $FLAGBACKUPNAS -eq 1 ]; then
                 echo "" >> $LOGSCRIPT
                 echo "`date` - Dumping mysql for database $line to $DIRDUMP/$line.sql" >> $LOGSCRIPT
                 echo "" >> $LOGSCRIPT
-                mysqldump -v -h$DBHOST -u$DBUSER -p$DBPASS $line > $DIRDUMP/$line.sql 2>> $LOGSCRIPT
+                $MYSQLDUMP -v -h$DBHOST -u$DBUSER -p$DBPASS $line > $DIRDUMP/$line.sql 2>> $LOGSCRIPT
             done < $DATABASE
         fi
     fi
