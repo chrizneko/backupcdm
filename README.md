@@ -20,7 +20,6 @@ HOW TO USE
 - Check everyday the log just in case something wrong happened
 
 TODO
-There are a lot to do, but most important things:
 - Create an installer and auto check all the dependency for easier and more secure deployment.
 - Create a man file or wiki for better documentation and explanation
 - Add timeout when dumping database, just in case the database cannot be dumped.
