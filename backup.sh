@@ -9,7 +9,7 @@
 # - restic (no need to install, just copy the binary into the same directory as this script), rename it into 'restic' and then chmod +x it so it became executable
 #   but if you install restic, then just change the resticdir value to restic path in the conf/conf.conf
 # any variables you need to change is on the config file (./conf/conf.conf)
-# created by CDM - v2.0.0-beta
+# created by CDM - v2.0.1-beta
 
 ##########################################################
 
@@ -55,7 +55,7 @@ dump_db () {
 
 # restic repo availability check
 restic_repo_availability_check () {
-  if [ ! -f $repodir/config ]; then
+  if [ ! -f $RESTIC_REPOSITORY/config ]; then
     $restic init
   fi
 }
