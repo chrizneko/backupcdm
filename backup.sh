@@ -2,230 +2,250 @@
 
 ##########################################################
 
-# this is a script with some features for backup with restic backend
-# dependency:
-# - bash, echo, date, find, mysqldump (if you are backing up mysql)
-# - config file named conf.conf (can be changed below), it is filled with all variables needed for this script
-# - restic (no need to install, just copy the binary into the same directory as this script)
-#   rename it into 'restic' and then chmod +x it so it became executable
-# - make a repo with the same as DIRREPO on the conf.conf using restic init -r <the directory of the repo>
-#   example: restic init -r /root/backupserver/test
-# - a file that contains all the list file / folder (full path) to be backed up separated with enter, located on the same directory with this script. 
-#   set the variable INCLUDE and INCLUDENAS as the name of the file
-# created by CDM - v1.0.3-beta
+# this is a shell script with some features for backup with restic backend
+# before use, make sure you there is already:
+# - configured conf.conf inside conf directory
+# - configured include file inside conf directory
+# - restic (no need to install, just copy the binary into the same directory as this script), rename it into 'restic' and then chmod +x it so it became executable
+#   but if you install restic, then just change the resticdir value to restic path in the conf/conf.conf
+# any variables you need to change is on the config file (./conf/conf.conf)
+# created by CDM - v2.0.0-beta
 
 ##########################################################
 
-# you can customize this variable suited for your environment
+# list all functions, to simplify script
 
-# the directory of this script located
-# example: CURDIR="/root/bin/backupcdm"
-readonly CURDIR="/root/bin/backupcdm"
+# dump db
+dump_db () {
+  echo -e "\n$(date) - Dumping database listed in $dbinclude"
+  
+  # prepare the directory for database dump
+  if [ ! -d $dumpdir ]; then
+    mkdir -p $dumpdir
+  else
+    rm -rf $dumpdir/*.sql $dumpdir/*.bak
+  fi
+  
+  # dumping the database one by one. Check the database type, 1 is mysql; 2 is postgresql; 3 is mssql
+  if [ $dbtype -eq 1 ]; then
+    while read line
+    do
+      echo -e "\n$(date) - Dumping mysql database $line to $dumpdir/$line.sql\n"
+      $mysqldump $mysqldumpopts $line > $dumpdir/$line.sql
+    done < $dbinclude
+  elif [ $dbtype -eq 2 ]; then
+    while read line
+    do
+      echo -e "\n$(date) - Dumping postgresql database $line to $dumpdir/$line.sql\n"
+      $pgdump $pgdumpopts $line > $dumpdir/$line.sql
+    done < $dbinclude
+  elif [ $dbtype -eq 3 ]; then
+    while read line
+    do
+      echo -e "\n$(date) - Backing up mssql database $line\n"
+      $sqlcmd $sqlcmdopts -Q "BACKUP DATABASE [$line] TO DISK='$line.bak'" < /dev/null
+      echo -e "\n$(date) - Moving the $sqldir/$line.bak to $dumpdir\n"
+      mv $sqldir/$line.bak $dumpdir/$line.bak
+    done < $dbinclude
+  else
+    echo -e "$(date) -- ERROR -- dbtype is wrong"
+    exit
+  fi
+}
 
-# this variable also can be changed but better not to be changed unless necessary
+# restic repo availability check
+restic_repo_availability_check () {
+  if [ ! -f $repodir/config ]; then
+    $restic init
+  fi
+}
 
-# the config name file
-# example: CONF="conf.conf"
-readonly CONF="conf.conf"
+# restic error check
+restic_error_check () {
+  echo -e "\n$(date) - Checking for error(s)\n"
+  $restic check
+}
+
+# restic forget the old snapshot
+restic_forget () {
+  echo -e "$(date) - Cleaning the snapshot, $1 $2 snapshot(s)\n"
+  $restic forget $1 $2 --prune
+}
+
+# restic backup
+restic_backup () {
+  echo -e "\n$(date) - Backing up all file and directory listed in $include and exclude file and directory listed in $exclude\n"
+  if [ $flagexclude -eq 0 ]; then
+    $restic backup --files-from $include
+  else
+    $restic backup --files-from $include --exclude-file=$exclude
+  fi
+}
 
 ##########################################################
+
+# this is the main function, script start here
 
 # let script exit if a command fails
-set -o errexit 
+set -o errexit
 
 # let script exit if an unused variable is used
 set -o nounset
 
-# get all the variables
-source $CURDIR/$CONF
+# set some static variables before reading the config file
+readonly curdir="$(dirname "$(readlink -f "$0")")"
+readonly confdir="$curdir/conf"
 
-# set the log file name with date
-readonly logfile="$DIRLOGSCRIPT/$LOGSCRIPT-$(date +%Y%m%d-%H%M).txt"
+# folder check conf
+if [ ! -d $confdir ]; then
+  echo -e "$(date) -- ERROR -- $confdir missing"
+  exit
+fi
+
+# file check conf
+if [ ! -f $confdir/conf.conf ]; then
+  touch $confdir/conf.conf
+fi
+
+# get variables from default file and the conf file
+source $confdir/default.conf
+source $confdir/conf.conf
+
+# set static variables
+readonly log="$logdir/$logprefix-$(date +%Y%m%d-%H%M).txt"
+readonly include="$confdir/include.txt"
+readonly exclude="$confdir/exclude.txt"
+readonly dbinclude="$confdir/dbinclude.txt"
+readonly lockfile="$curdir/backupcdm.lock"
 
 # make the folder if the log folder doesn't exist
-if [ ! -f $DIRLOGSCRIPT ]; then
-	mkdir -p $DIRLOGSCRIPT
+if [ ! -d $logdir ]; then
+  mkdir -p $logdir
 fi
 
 # output all of the script to the log
 exec 3>&1 4>&2
 trap 'exec 2>&4 1>&3' 0 1 2 3
-exec 1>$logfile 2>&1
+exec 1>$log 2>&1
 
-echo "$(date) - Starting script"
+echo -e "$(date) - Starting script"
 
 # protection for not running multiple scripts on the same time
-readonly lockfile="$CURDIR/backupcdm.lock"
 if [ -f $lockfile ]; then
-	echo "$(date) - Script is locked, whether it is still running or failed on last run -- ERROR"
-	echo "$(date) - Please check the log and delete the $lockfile to try again"
-	exit
+  echo -e "$(date) -- ERROR -- Script is locked, whether it is still running or failed on last run. Please check the log and delete the $lockfile to try again"
+  exit
 fi
 touch $lockfile
 
+# file check include
+if [ ! -f "$include" ] || [ ! -s "$include" ]; then
+  touch $include
+  echo -e "$(date) -- ERROR -- Please fill the $include with list file / folder to backup"
+  exit
+fi
+
+# file check exclude
+if [ ! -f "$exclude" ] || [ ! -s "$exclude" ]; then
+  touch $exclude
+  flagexclude=0
+else
+  flagexclude=1
+fi
+
+# file check database
+if [ $backupdb -eq 1 ]; then
+  if [ ! -f "$dbinclude" ] || [ ! -s "$dbinclude" ]; then
+    touch $dbinclude
+    echo -e "$(date) -- ERROR -- Please fill the $dbinclude with list database to backup"
+    exit
+  else
+    if ! grep -q "$dumpdir" "$include"; then
+      echo -e "$dumpdir" >> $include
+    fi
+  fi
+fi
+
+# file check restic
+if [ ! -f "$restic" ]; then
+  echo -e "$(date) -- ERROR -- File $restic is missing"
+  exit
+fi
+
 # delete old log files
-echo "$(date) - Deleting old log files on $DIRLOGSCRIPT"
-find $DIRLOGSCRIPT/$LOGSCRIPT*.txt -mtime +$KEEPSNAPSHOT -exec rm {} \;
-
-# file check INCLUDE
-if [ ! -f "$CURDIR/$INCLUDE" ]; then
-	echo "$(date) - File $CURDIR/$INCLUDE is missing -- ERROR"
-	exit
-fi
-
-# file check INCLUDENAS
-if [ ! -f "$CURDIR/$INCLUDENAS" ]; then
-	echo "$(date) - File $CURDIR/$INCLUDENAS is missing -- ERROR"
-	exit
-fi
-
-# file check EXCLUDE
-if [ -z "$EXCLUDE" ]; then
-	FLAGEXCLUDE=0
+echo -e "$(date) - Deleting old log files on $logdir"
+if [ $keepsnapshot -ge $keepsnapshotnas ]; then
+  find $logdir/$logprefix*.txt -mtime +$keepsnapshot -exec rm {} \;
 else
-	if [ -f "$CURDIR/$EXCLUDE" ]; then
-		FLAGEXCLUDE=1
-	else
-		echo "$(date) - File $CURDIR/$EXCLUDE is missing -- ERROR"
-		exit
-	fi
+  find $logdir/$logprefix*.txt -mtime +$keepsnapshotnas -exec rm {} \;
 fi
 
-# file check EXCLUDENAS
-if [ -z "$EXCLUDENAS" ]; then
-	FLAGEXCLUDENAS=0
-else
-	if [ -f "$CURDIR/$EXCLUDENAS" ]; then
-		FLAGEXCLUDENAS=1
-	else
-		echo "$(date) - File $CURDIR/$EXCLUDENAS is missing -- ERROR"
-		exit
-	fi
+# do a dump database if set
+if [ $backupdb -eq 1 ]; then
+  dump_db
 fi
 
-# restic check
-if [ ! -f "$CURDIR/restic" ]; then
-	echo "$(date) - File $CURDIR/restic is missing -- ERROR"
-	exit
-fi	
+# export restic password
+export RESTIC_PASSWORD=$repopass
 
 # local backup
-if [ $FLAGBACKUPLOCAL -eq 1 ]; then
+if [ $backuplocal -eq 1 ]; then
 
-    # export all needed restic variables
-    export RESTIC_PASSWORD=$REPOPASS
-    export RESTIC_REPOSITORY=$DIRREPO
-
-    # clean the old snapshot first before backup
-    echo "$(date) - Cleaning the snapshot, keeping the last $KEEPSNAPSHOT snapshot(s)"
-    echo ""
-    $CURDIR/restic forget --keep-last $KEEPSNAPSHOT --prune
-    
-    # error check
-    echo ""
-    echo "$(date) - Checking for error(s)"
-    echo ""
-    $CURDIR/restic check
-    
-    # do a database backup if set
-    if [ $FLAGBACKUPDBLOCAL -eq 1 ]; then
-        echo ""
-        echo "$(date) - Dumping mysql for database listed in $CURDIR/$DATABASE"
-        
-        # prepare the directory
-        rm -rf $DIRDUMP/*.sql
-        mkdir -p $DIRDUMP
-        
-        # dumping the database one by one
-        while read line
-        do
-            echo ""
-            echo "$(date) - Dumping mysql for database $line to $DIRDUMP/$line.sql"
-            echo ""
-            mysqldump -v -h$DBHOST -u$DBUSER -p$DBPASS $line > $DIRDUMP/$line.sql
-        done < $CURDIR/$DATABASE
-    fi
-    
-    # do the restic backup
-    echo ""
-    echo "$(date) - Backing up all file and directory listed in $CURDIR/$INCLUDE"
-    if [ $FLAGEXCLUDE -eq 0 ]; then
-        echo ""
-        $CURDIR/restic backup --files-from $CURDIR/$INCLUDE
-    else
-        echo "$(date) - Exclude file and directory listed in $CURDIR/$EXCLUDE"
-        echo ""
-        $CURDIR/restic backup --files-from $CURDIR/$INCLUDE --exclude-file=$CURDIR/$EXCLUDE
-    fi
-    
-    # error check
-    echo ""
-    echo "$(date) - Checking for error(s)"
-    echo ""
-    $CURDIR/restic check
+  # export restic repo directory
+  export RESTIC_REPOSITORY=$repodir
+  
+  # check for repo availability
+  restic_repo_availability_check
+  
+  # check for error first
+  restic_error_check
+  
+  # forget the old snapshot first before backup
+  restic_forget $resticforgetopts $keepsnapshot
+  
+  # check for error again
+  restic_error_check
+  
+  # do the restic backup
+  restic_backup
+  
+  # last check for the error
+  restic_error_check
+  
+  # nas backup only using cp
+  if [ $backupcpnas -eq 1 ]; then
+    echo -e "\n$(date) - Copying to nas"
+    cp -pr $repodir $reponascpdir
+    export RESTIC_REPOSITORY=$reponasdir
+    restic_forget $resticforgetnasopts $keepsnapshotnas
+    restic_error_check
+  fi
 fi
 
 # nas backup
-if [ $FLAGBACKUPNAS -eq 1 ]; then
-    
-    # export all needed restic variables
-    export RESTIC_PASSWORD=$REPOPASSNAS
-    export RESTIC_REPOSITORY=$DIRREPONAS
-    
-    # clean the old snapshot first before backup
-    echo "$(date) - Cleaning the snapshot, keeping the last $KEEPSNAPSHOTNAS snapshot(s)"
-    echo ""
-    $CURDIR/restic forget --keep-last $KEEPSNAPSHOTNAS --prune
-    
-    # error check
-    echo ""
-    echo "$(date) - Checking for error(s)"
-    echo ""
-    $CURDIR/restic check
-    
-    # do a database backup if set
-    if [ $FLAGBACKUPDBNAS -eq 1 ]; then
-    
-        # if it is not dumped yet, then dump
-        if [ $FLAGBACKUPDBLOCAL -ne 1 ]; then
-            echo ""
-            echo "$(date) - Dumping mysql for database listed in $CURDIR/$DATABASE"
-            
-            # prepare the directory
-            rm -rf $DIRDUMP/*.sql
-            mkdir -p $DIRDUMP
-        
-            # dumping the database one by one
-            while read line
-            do
-                echo ""
-                echo "$(date) - Dumping mysql for database $line to $DIRDUMP/$line.sql"
-                echo ""
-                mysqldump -v -h$DBHOST -u$DBUSER -p$DBPASS $line > $DIRDUMP/$line.sql
-            done < $CURDIR/$DATABASE
-        fi
-    fi
-    
-    # do the restic backup
-    echo ""
-    echo "$(date) - Backing up all file and directory listed in $CURDIR/$INCLUDENAS"
-    if [ $FLAGEXCLUDENAS -eq 0 ]; then
-        echo ""
-        $CURDIR/restic backup --files-from $CURDIR/$INCLUDENAS
-    else
-        echo "$(date) - Exclude file and directory listed in $CURDIR/$EXCLUDENAS"
-        echo ""
-        $CURDIR/restic backup --files-from $CURDIR/$INCLUDENAS --exclude-file=$CURDIR/$EXCLUDENAS
-    fi
-    
-    # error check
-    echo ""
-    echo "$(date) - Checking for error(s)"
-    echo ""
-    $CURDIR/restic check
+if [ $backupnas -eq 1 ]; then
+
+  # export restic repo directory
+  export RESTIC_REPOSITORY=$reponasdir
+  
+  # check for repo availability
+  restic_repo_availability_check
+  
+  # check for error first
+  restic_error_check
+  
+  # forget the old snapshot first before backup
+  restic_forget $resticforgetnasopts $keepsnapshotnas
+  
+  # check for error again
+  restic_error_check
+  
+  # do the restic backup
+  restic_backup
+  
+  # last check for the error
+  restic_error_check
 fi
 
-echo ""
-echo "$(date) - Script done"
+echo -e "\n$(date) - Script finished without error"
 rm -f $lockfile
 exit
