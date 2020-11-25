@@ -9,7 +9,7 @@
 # - restic (no need to install, just copy the binary into the same directory as this script), rename it into 'restic' and then chmod +x it so it became executable
 #   but if you install restic, then just change the resticdir value to restic path in the conf/conf.conf
 # any variables you need to change is on the config file (./conf/conf.conf)
-# created by CDM - v2.0.1-beta
+# created by CDM - v2.0.2-beta
 
 ##########################################################
 
@@ -69,7 +69,22 @@ restic_error_check () {
 # restic forget the old snapshot
 restic_forget () {
   echo -e "$(date) - Cleaning the snapshot, $1 $2 snapshot(s)\n"
-  $restic forget $1 $2 --prune
+  if [ $2 -lt 2 ]; then
+    $restic forget latest --prune
+  else
+    reducedsnapshot=$(expr $2 - 1)
+    $restic forget $1 $reducedsnapshot --prune
+  fi
+}
+
+# restic forget the old snapshot, on cp to nas case
+restic_forget_cpnas () {
+  echo -e "$(date) - Cleaning the snapshot, $1 $2 snapshot(s)\n"
+  if [ $2 -lt 2 ]; then
+    $restic forget latest --prune
+  else
+    $restic forget $1 $2 --prune
+  fi
 }
 
 # restic backup
@@ -216,7 +231,7 @@ if [ $backuplocal -eq 1 ]; then
     echo -e "\n$(date) - Copying to nas"
     cp -pr $repodir $reponascpdir
     export RESTIC_REPOSITORY=$reponasdir
-    restic_forget $resticforgetnasopts $keepsnapshotnas
+    restic_forget_cpnas $resticforgetnasopts $keepsnapshotnas
     restic_error_check
   fi
 fi
