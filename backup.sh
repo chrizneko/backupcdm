@@ -9,7 +9,7 @@
 # - restic (no need to install, just copy the binary into the same directory as this script), rename it into 'restic' and then chmod +x it so it became executable
 #   but if you install restic, then just change the resticdir value to restic path in the conf/conf.conf
 # any variables you need to change is on the config file (./conf/conf.conf)
-# created by CDM - v2.0.2-beta
+# created by CDM - v2.0.3-beta
 
 ##########################################################
 
@@ -23,10 +23,10 @@ dump_db () {
   if [ ! -d $dumpdir ]; then
     mkdir -p $dumpdir
   else
-    rm -rf $dumpdir/*.sql $dumpdir/*.bak
+    rm -rf $dumpdir/*
   fi
   
-  # dumping the database one by one. Check the database type, 1 is mysql; 2 is postgresql; 3 is mssql
+  # dumping the database one by one. Check the database type, 1 is mysql; 2 is postgresql; 3 is mssql; 4 is mongodb
   if [ $dbtype -eq 1 ]; then
     while read line
     do
@@ -47,6 +47,8 @@ dump_db () {
       echo -e "\n$(date) - Moving the $sqldir/$line.bak to $dumpdir\n"
       mv $sqldir/$line.bak $dumpdir/$line.bak
     done < $dbinclude
+  elif [ $dbtype -eq 4 ]; then
+    $mongodump $mongodumpopts --out="$dumpdir"
   else
     echo -e "$(date) -- ERROR -- dbtype is wrong"
     exit
@@ -171,12 +173,13 @@ fi
 if [ $backupdb -eq 1 ]; then
   if [ ! -f "$dbinclude" ] || [ ! -s "$dbinclude" ]; then
     touch $dbinclude
-    echo -e "$(date) -- ERROR -- Please fill the $dbinclude with list database to backup"
-    exit
-  else
-    if ! grep -q "$dumpdir" "$include"; then
-      echo -e "$dumpdir" >> $include
+    if [ $dbtype -ne 4 ]; then
+      echo -e "$(date) -- ERROR -- Please fill the $dbinclude with list database to backup"
+      exit
     fi
+  fi
+  if ! grep -q "$dumpdir" "$include"; then
+    echo -e "$dumpdir" >> $include
   fi
 fi
 
