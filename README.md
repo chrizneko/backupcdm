@@ -5,7 +5,7 @@ Long story short, I use this for my server just to simplify (and a little bit co
 It is using restic as the backend.
 
 COMPATIBILITY
-- Linux; not pretty sure all distribution will work, but I tested it in some SLES, Centos, Debian, and Ubuntu (with several different releases).
+- Linux; All distribution should be fine as long as bash and restic can run. I tested it in some SLES, Centos, Debian, and Ubuntu (with several different releases).
 - Database dump support: mysql, postgresql, mssql, and mongodb. Not tested the version one by one but as long as the dump options are correct everything will be okay.
 - Tested it with restic > 0.10.0. Not tested on version before that.
 - It is run on root.
@@ -20,7 +20,8 @@ HOW TO USE
 - Check everyday the log just in case something wrong happened
 
 TODO
-- Create an installer and auto check all the dependency for easier and more secure deployment.
+- Restructure script for better error-handling (catching which line caused the script crash) and better notifier of course
+- Create an installer and auto check all the dependency for easier and more secure deployment
 - Create a man file or wiki for better documentation and explanation
 - Add timeout when dumping database, just in case the database cannot be dumped.
 - Make script not doing the same things in case the server hanged or rebooted while backing up
