@@ -9,7 +9,7 @@
 # - restic (no need to install, just copy the binary into the same directory as this script), rename it into 'restic' and then chmod +x it so it became executable
 #   but if you install restic, then just change the resticdir value to restic path in the conf/conf.conf
 # any variables you need to change is on the config file (./conf/conf.conf)
-# created by CDM - v2.0.3-beta
+# created by CDM - v2.0.4
 
 ##########################################################
 
@@ -150,6 +150,9 @@ echo -e "$(date) - Starting script"
 # protection for not running multiple scripts on the same time
 if [ -f $lockfile ]; then
   echo -e "$(date) -- ERROR -- Script is locked, whether it is still running or failed on last run. Please check the log and delete the $lockfile to try again"
+  if [ $notify -eq 1 ]; then  
+    curl -s -X POST -F "hostname=$HOSTNAME" $notifysite
+  fi
   exit
 fi
 touch $lockfile
