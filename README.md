@@ -6,7 +6,7 @@ It is using restic as the backend.
 
 COMPATIBILITY
 - Linux; All distribution should be fine as long as bash and restic can run. I tested it in some SLES, Centos, Debian, and Ubuntu (with several different releases).
-- Database dump support: mysql, postgresql, mssql, and mongodb. Not tested the version one by one but as long as the dump options are correct everything will be okay.
+- Database dump support: mysql, postgresql, mssql, mongodb, and elasticsearch. Not tested the version one by one but as long as the dump options are correct everything will be okay.
 - Tested it with restic > 0.10.0. Not tested on version before that.
 - It is run on root.
 
