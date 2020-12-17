@@ -9,7 +9,7 @@
 # - restic (no need to install, just copy the binary into the same directory as this script), rename it into 'restic' and then chmod +x it so it became executable
 #   but if you install restic, then just change the resticdir value to restic path in the conf/conf.conf
 # any variables you need to change is on the config file (./conf/conf.conf)
-# created by CDM - v2.0.5
+# created by CDM - v2.0.6
 
 ##########################################################
 
@@ -53,6 +53,21 @@ dump_db () {
     echo -e "$(date) -- ERROR -- dbtype is wrong"
     exit
   fi
+}
+
+# elasticsearch backup
+elasticsearch_snapshot () {
+  snapshotes="$(date +%Y%m%d-%H%M)"
+  limites="$1"
+  echo -e "$(date) - Removing the elasticsearch snapshot, keeping the last $limites snapshot(s)\n"
+  delloop=`curl -XGET "localhost:9200/_snapshot/$repoes/_all" | jq -r ".snapshots[:-${limites}][].snapshot"`
+  for del in $delloop
+  do
+    echo -e "$(date) - Deleting snapshot: $del"
+    curl -XDELETE "localhost:9200/_snapshot/$repoes/$del?pretty"
+  done
+  echo -e "$(date) - Backing up elasticsearch"
+  curl -XPUT "localhost:9200/_snapshot/$repoes/$snapshotes?wait_for_completion=true"
 }
 
 # restic repo availability check
@@ -176,6 +191,17 @@ if [ $backupdb -eq 1 ]; then
   fi
 fi
 
+# file check elasticsearch
+if [ $backupes -eq 1 ]; then
+  if [ ! -f "$repoes" ] || [ ! -s "$repoes" ]; then
+    echo -e "$(date) -- ERROR -- Please configure manually your elasticsearch backup first"
+    exit
+  fi
+  if ! grep -q "$repoes" "$include"; then
+    echo -e "$repoes" >> $include
+  fi
+fi
+
 # file check restic
 if [ ! -f "$restic" ]; then
   echo -e "$(date) -- ERROR -- File $restic is missing"
@@ -193,6 +219,11 @@ fi
 # do a dump database if set
 if [ $backupdb -eq 1 ]; then
   dump_db
+fi
+
+# do elasticsearch backup if set
+if [ $backupes -eq 1 ]; then
+  elasticsearch_snapshot $keepsnapshotes
 fi
 
 # export restic password
