@@ -9,7 +9,7 @@
 # - restic (no need to install, just copy the binary into the same directory as this script), rename it into 'restic' and then chmod +x it so it became executable
 #   but if you install restic, then just change the resticdir value to restic path in the conf/conf.conf
 # any variables you need to change is on the config file (./conf/conf.conf)
-# created by CDM - v2.0.6
+# created by CDM - v2.0.7
 
 ##########################################################
 
@@ -57,17 +57,16 @@ dump_db () {
 
 # elasticsearch backup
 elasticsearch_snapshot () {
-  snapshotes="$(date +%Y%m%d-%H%M)"
-  limites="$1"
-  echo -e "$(date) - Removing the elasticsearch snapshot, keeping the last $limites snapshot(s)\n"
-  delloop=`curl -XGET "localhost:9200/_snapshot/$repoes/_all" | jq -r ".snapshots[:-${limites}][].snapshot"`
+  echo -e "$(date) - Removing the elasticsearch snapshot, keeping the last $keepsnapshotes snapshot(s)\n"
+  delloop="$(curl -s -XGET "localhost:9200/_snapshot/$reposnapes/_all" | jq -r ".snapshots[:-$keepsnapshotes][].snapshot")"
   for del in $delloop
   do
     echo -e "$(date) - Deleting snapshot: $del"
-    curl -XDELETE "localhost:9200/_snapshot/$repoes/$del?pretty"
+    curl -s -XDELETE "localhost:9200/_snapshot/$reposnapes/$del?pretty"
   done
   echo -e "$(date) - Backing up elasticsearch"
-  curl -XPUT "localhost:9200/_snapshot/$repoes/$snapshotes?wait_for_completion=true"
+  snapshotes="$(date +%Y%m%d-%H%M)"
+  curl -s -XPUT "localhost:9200/_snapshot/$reposnapes/$snapshotes?wait_for_completion=true"
 }
 
 # restic repo availability check
@@ -193,7 +192,7 @@ fi
 
 # file check elasticsearch
 if [ $backupes -eq 1 ]; then
-  if [ ! -f "$repoes" ] || [ ! -s "$repoes" ]; then
+  if [ ! -d $repoes ]; then
     echo -e "$(date) -- ERROR -- Please configure manually your elasticsearch backup first"
     exit
   fi
@@ -223,7 +222,7 @@ fi
 
 # do elasticsearch backup if set
 if [ $backupes -eq 1 ]; then
-  elasticsearch_snapshot $keepsnapshotes
+  elasticsearch_snapshot
 fi
 
 # export restic password
