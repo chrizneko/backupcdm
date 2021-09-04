@@ -27,6 +27,5 @@ TODO
 - Make script not doing the same things in case the server hanged or rebooted while backing up
 - Add checker for the host storage, so the host will not be running out of storage when backing up
 - Test and rework the script so it will work on all user (not only root)
-- Add support for mounting external storage and unmount them (so there is no need for remote storage to be always mounted)
 - Central configuration, log, and back up progress for several hosts in a single dashboard (a huge goal, to make this kinda web based!)
 - etc
