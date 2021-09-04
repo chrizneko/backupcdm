@@ -266,9 +266,11 @@ fi
 # nas backup
 if [ $backupnas -eq 1 ]; then
   
-  # mount the repo
-  echo -e "$(date) -- Mounting $reponasmount"
-  mount $reponasmount
+  # mount the repo if automount = 1
+  if [ $automount -eq 1 ]; then
+    echo -e "$(date) -- Mounting $reponasmount"
+    mount $reponasmount
+  fi
   
   # export restic repo directory
   export RESTIC_REPOSITORY=$reponasdir
@@ -291,9 +293,11 @@ if [ $backupnas -eq 1 ]; then
   # last check for the error
   restic_error_check
   
-  # unmount the repo
-  echo -e "$(date) -- Unmounting $reponasmount"
-  umount $reponasmount
+  # unmount the repo if automount = 1
+  if [ $automount -eq 1 ]; then
+    echo -e "$(date) -- Unmounting $reponasmount"
+    umount $reponasmount
+  fi
 fi
 
 echo -e "\n$(date) - Script finished without error"
