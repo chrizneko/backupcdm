@@ -9,7 +9,7 @@
 # - restic (no need to install, just copy the binary into the same directory as this script), rename it into 'restic' and then chmod +x it so it became executable
 #   but if you install restic, then just change the resticdir value to restic path in the conf/conf.conf
 # any variables you need to change is on the config file (./conf/conf.conf)
-# created by CDM - v2.0.8
+# created by CDM - v2.0.9
 
 ##########################################################
 
@@ -265,7 +265,11 @@ fi
 
 # nas backup
 if [ $backupnas -eq 1 ]; then
-
+  
+  # mount the repo
+  echo -e "$(date) -- Mounting $reponasmount"
+  mount $reponasmount
+  
   # export restic repo directory
   export RESTIC_REPOSITORY=$reponasdir
   
@@ -286,6 +290,10 @@ if [ $backupnas -eq 1 ]; then
   
   # last check for the error
   restic_error_check
+  
+  # unmount the repo
+  echo -e "$(date) -- Unmounting $reponasmount"
+  umount $reponasmount
 fi
 
 echo -e "\n$(date) - Script finished without error"
